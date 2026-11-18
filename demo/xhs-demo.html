@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>小红书热点 · 插件 Demo</title>
+<style>
+  :root{
+    --red:#ff2442; --red-2:#ff5c72; --ink:#1f1f1f; --ink-2:#444; --muted:#8a8a8a;
+    --line:#ececec; --bg:#f7f7f9; --card:#fff; --tag:#fff2f4; --tag-ink:#ff2442;
+    --radius:16px; --shadow:0 6px 24px rgba(0,0,0,.06); --shadow-2:0 10px 40px rgba(0,0,0,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6;
+  }
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#dcdcdc;border-radius:9px}
+  ::-webkit-scrollbar-thumb:hover{background:#c8c8c8}
+
+  /* 顶栏 */
+  .topbar{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;
+    padding:12px 22px;background:rgba(255,255,255,.86);backdrop-filter:saturate(180%) blur(14px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:.5px}
+  .brand .dot{width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,var(--red),var(--red-2));
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:900;box-shadow:0 4px 12px rgba(255,36,66,.35)}
+  .brand small{font-weight:500;color:var(--muted);font-size:11px;padding:2px 7px;border:1px solid var(--line);border-radius:999px}
+
+  .searchwrap{flex:1;max-width:560px;position:relative}
+  .searchbar{display:flex;align-items:center;gap:10px;background:#f1f1f3;border-radius:999px;padding:9px 16px;
+    border:1.5px solid transparent;transition:.18s}
+  .searchbar:focus-within{background:#fff;border-color:var(--red);box-shadow:0 0 0 4px rgba(255,36,66,.08)}
+  .searchbar svg{flex:none;opacity:.5}
+  .searchbar input{flex:1;border:none;outline:none;background:none;font-size:14px;color:var(--ink)}
+  .searchbar button{color:#fff;background:var(--red);border-radius:999px;padding:5px 16px;font-weight:600;font-size:13px;transition:.15s}
+  .searchbar button:hover{background:#e91e3c}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .chip{padding:5px 13px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink-2);
+    font-size:12.5px;transition:.15s;cursor:pointer}
+  .chip:hover{border-color:var(--red);color:var(--red);background:var(--tag)}
+  .topbar .spacer{flex:none}
+
+  /* 布局 */
+  .layout{display:grid;grid-template-columns:1fr 380px;gap:22px;max-width:1320px;margin:22px auto;padding:0 22px;align-items:start}
+  @media(max-width:1080px){.layout{grid-template-columns:1fr}}
+
+  .section-head{display:flex;align-items:baseline;gap:10px;margin:2px 2px 14px}
+  .section-head h2{margin:0;font-size:16px;font-weight:800}
+  .section-head .sub{color:var(--muted);font-size:12.5px}
+  .section-head .cnt{color:var(--red);font-weight:700}
+
+  /* 笔记瀑布流（用 CSS 多列模拟） */
+  .feed{column-count:3;column-gap:14px}
+  @media(max-width:760px){.feed{column-count:2}}
+  @media(max-width:480px){.feed{column-count:1}}
+  .note{
+    break-inside:avoid;margin-bottom:14px;background:var(--card);border-radius:var(--radius);overflow:hidden;
+    box-shadow:var(--shadow);transition:transform .16s,box-shadow .16s;cursor:pointer;border:1px solid #f3f3f3;
+  }
+  .note:hover{transform:translateY(-3px);box-shadow:var(--shadow-2)}
+  .note .cover{width:100%;display:block;position:relative}
+  .note .cover img{width:100%;display:block;object-fit:cover}
+  .note .cover .ratio{display:block;width:100%}
+  .note .body{padding:10px 12px 12px}
+  .note .title{font-size:13.5px;font-weight:600;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;
+    -webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
+  .note .meta{display:flex;align-items:center;gap:6px;margin-top:9px;color:var(--muted);font-size:12px}
+  .note .avatar{width:20px;height:20px;border-radius:50%;overflow:hidden;flex:none;background:#eee}
+  .note .avatar img{width:100%;height:100%;object-fit:cover}
+  .note .nick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px}
+  .note .like{margin-left:auto;display:flex;align-items:center;gap:3px;color:var(--muted)}
+  .note .like.liked{color:var(--red)}
+  .note .tagrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .tag{font-size:11px;color:var(--tag-ink);background:var(--tag);padding:2px 8px;border-radius:999px}
+
+  /* 空态 / 载入 */
+  .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)}
+  .empty .big{font-size:34px;margin-bottom:8px}
+  .skel{background:linear-gradient(90deg,#f0f0f0 25%,#e6e6e6 37%,#f0f0f0 63%);background-size:400% 100%;animation:sh 1.2s ease infinite}
+  @keyframes sh{0%{background-position:100% 50%}100%{background-position:0 50%}}
+
+  /* 右侧工具/草稿面板 */
+  .side{position:sticky;top:82px;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #f3f3f3;padding:16px}
+  .card h3{margin:0 0 4px;font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .card .desc{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12.5px;color:var(--ink-2);font-weight:600;margin-bottom:6px}
+  .field input[type=text],.field textarea{
+    width:100%;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13.5px;
+    outline:none;transition:.15s;font-family:inherit;background:#fafafa;color:var(--ink)}
+  .field input:focus,.field textarea:focus{border-color:var(--red);background:#fff;box-shadow:0 0 0 3px rgba(255,36,66,.07)}
+  .field textarea{resize:vertical;min-height:64px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:11px;border-radius:11px;
+    background:var(--red);color:#fff;font-weight:700;font-size:14px;transition:.15s}
+  .btn:hover{background:#e91e3c;transform:translateY(-1px)}
+  .btn:disabled{background:#f3b9c1;cursor:default;transform:none}
+  .btn.ghost{background:#fff;color:var(--red);border:1.5px solid var(--red)}
+  .btn.ghost:hover{background:var(--tag)}
+  .btn.gray{background:#f1f1f3;color:var(--ink-2)}
+  .btn.gray:hover{background:#e7e7ea}
+
+  .mini{font-size:12px;color:var(--muted)}
+  .switchrow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px dashed var(--line)}
+  .switchrow:first-of-type{border-top:none}
+  .switch{position:relative;width:42px;height:24px;border-radius:999px;background:#dcdcdc;transition:.2s;flex:none}
+  .switch.on{background:var(--red)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .switch.on::after{left:20px}
+
+  .status-dot{width:8px;height:8px;border-radius:50%;background:#41c66a;display:inline-block;box-shadow:0 0 0 3px rgba(65,198,106,.15)}
+  .status-dot.off{background:#c8c8c8;box-shadow:0 0 0 3px rgba(0,0,0,.04)}
+
+  /* 草稿结果 */
+  .draft{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;display:none}
+  .draft.show{display:block;animation:fade .25s}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .draft .dhead{padding:12px 14px;background:linear-gradient(135deg,#fff6f7,#fff);border-bottom:1px solid var(--line)}
+  .draft .dtitle{font-weight:800;font-size:14px;line-height:1.5}
+  .draft .dmode{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .draft .dbody{padding:12px 14px;max-height:320px;overflow:auto;font-size:13px;color:var(--ink-2)}
+  .draft .dbody p{margin:0 0 10px}
+  .draft .dtags{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 12px}
+
+  /* 详情遮罩 */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);z-index:100;
+    display:none;align-items:center;justify-content:center;padding:24px}
+  .overlay.show{display:flex;animation:fade .2s}
+  .detail{display:grid;grid-template-columns:1.1fr .9fr;width:min(960px,100%);max-height:88vh;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.4)}
+  @media(max-width:820px){.detail{grid-template-columns:1fr;max-height:92vh;overflow:auto}}
+  .detail .dleft{background:#0e0e0e;display:flex;align-items:center;justify-content:center;min-height:300px}
+  .detail .dleft img{max-width:100%;max-height:88vh;display:block}
+  .detail .dright{display:flex;flex-direction:column;max-height:88vh}
+  .detail .dtop{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .detail .dtop .avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:none;background:#eee}
+  .detail .dtop .avatar img{width:100%;height:100%;object-fit:cover}
+  .detail .dtop .nick{font-weight:700;font-size:14px}
+  .detail .dtop .t{font-size:11.5px;color:var(--muted)}
+  .detail .dtop .follow{margin-left:auto;color:var(--red);border:1px solid var(--red);border-radius:999px;padding:4px 14px;font-size:12.5px;font-weight:600;background:#fff}
+  .detail .close{position:absolute;top:18px;right:22px;color:#fff;background:rgba(0,0,0,.4);width:38px;height:38px;border-radius:50%;font-size:20px;display:grid;place-items:center;z-index:5}
+  .detail .dscroll{flex:1;overflow:auto;padding:16px 18px}
+  .detail .ntitle{font-size:17px;font-weight:800;margin:0 0 8px}
+  .detail .ncontent{font-size:13.5px;color:var(--ink-2);white-space:pre-wrap;margin-bottom:12px}
+  .detail .ntags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .detail .nmeta{display:flex;gap:16px;color:var(--muted);font-size:12.5px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:14px}
+  .comment{display:flex;gap:10px;margin-bottom:14px}
+  .comment .cav{width:30px;height:30px;border-radius:50%;overflow:hidden;flex:none;background:#eee}
+  .comment .cav img{width:100%;height:100%;object-fit:cover}
+  .comment .cbody{flex:1}
+  .comment .cnick{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:2px}
+  .comment .ctext{font-size:13px;color:var(--ink-2)}
+  .comment .csub{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;gap:12px}
+  .comment-box{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:#fafafa}
+  .comment-box input{flex:1;border:1.5px solid var(--line);border-radius:999px;padding:8px 14px;outline:none;font-size:13px;background:#fff}
+  .comment-box input:focus{border-color:var(--red)}
+
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:#222;color:#fff;
+    padding:10px 20px;border-radius:999px;font-size:13px;opacity:0;transition:.25s;z-index:300;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .banner{max-width:1320px;margin:14px auto 0;padding:0 22px}
+  .banner .inner{background:linear-gradient(120deg,#fff0f2,#fff);border:1px solid #ffe0e5;border-radius:14px;padding:11px 16px;
+    font-size:12.5px;color:#b23;display:flex;align-items:center;gap:9px}
+  .banner b{color:#ff2442}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="dot">书</span>小红书热点 <small>插件 Demo · 示例数据</small></div>
+  <div class="searchwrap">
+    <div class="searchbar">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="kw" type="text" placeholder="搜索笔记 / 关键词，如：穿搭、露营、探店" />
+      <button id="btn-search">搜索</button>
+    </div>
+  </div>
+  <div class="spacer"></div>
+</header>
+
+<div class="banner"><div class="inner">
+  <span>💡</span><span>这是<b>界面演示</b>：数据为示例，非真实抓取。小红书没有免登录接口（搜索/正文需前端签名），<b>正式版</b>会驱动你本机已登录的浏览器来取真实数据。</span>
+</div></div>
+
+<div class="layout">
+  <!-- 左：笔记流 -->
+  <div>
+    <div class="section-head">
+      <h2 id="feed-title">发现</h2>
+      <span class="sub">·</span>
+      <span class="sub" id="feed-sub">共 <span class="cnt" id="feed-count">0</span> 篇笔记</span>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="feed" class="feed" style="margin-top:14px"></div>
+  </div>
+
+  <!-- 右：工具面板 -->
+  <aside class="side">
+    <div class="card">
+      <h3>🔌 连接状态</h3>
+      <p class="desc">演示模式 · 数据为示例</p>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)">
+        <span class="status-dot off" id="conn-dot"></span><span id="conn-text">未连接（示例数据）</span>
+      </div>
+      <div class="switchrow" style="margin-top:10px"><span class="mini">采集笔记数 / 次</span><b id="set-count">20</b></div>
+      <div class="switchrow"><span class="mini">附带笔记评论</span><span class="switch" id="set-comments"></span></div>
+      <div class="switchrow"><span class="mini">附带正文全文</span><span class="switch on" id="set-full"></span></div>
+    </div>
+
+    <div class="card">
+      <h3>✍️ 生成发布草稿</h3>
+      <p class="desc">选一篇笔记 / 按关键词，让模型写成一篇可发布的文章</p>
+      <div class="field">
+        <label>出稿关键词（留空用当前搜索结果）</label>
+        <input id="draft-kw" type="text" placeholder="如：冬季穿搭公式" />
+      </div>
+      <div class="field">
+        <label>风格 / 角度（可选）</label>
+        <input id="draft-style" type="text" placeholder="如：干货实用、轻松种草、专业测评" />
+      </div>
+      <button class="btn" id="btn-draft">据当前内容写文章</button>
+      <div class="draft" id="draft-out">
+        <div class="dhead">
+          <div class="dtitle" id="d-title"></div>
+          <div class="dmode" id="d-mode"></div>
+        </div>
+        <div class="dbody" id="d-body"></div>
+        <div class="dtags" id="d-tags"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📋 其他能力</h3>
+      <p class="desc">与头条插件对齐的四项</p>
+      <div class="mini" style="line-height:1.9">
+        ✅ 可配置搜索条数 / 关键词<br>
+        ✅ 供其他插件取数据（ctx.provide）<br>
+        ✅ 可选生成发布草稿 + 风格关键词<br>
+        ✅ 设置含「立即获取」+「定时获取」
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- 笔记详情 -->
+<div class="overlay" id="overlay">
+  <div class="detail" style="position:relative">
+    <button class="close" id="d-close">×</button>
+    <div class="dleft"><img id="d-img" alt=""/></div>
+    <div class="dright">
+      <div class="dtop">
+        <div class="avatar"><img id="d-av" alt=""/></div>
+        <div><div class="nick" id="d-nick"></div><div class="t" id="d-time"></div></div>
+        <button class="follow">关注</button>
+      </div>
+      <div class="dscroll">
+        <h2 class="ntitle" id="d-ntitle"></h2>
+        <div class="ncontent" id="d-ncontent"></div>
+        <div class="ntags" id="d-ntags"></div>
+        <div class="nmeta">
+          <span>❤️ <b id="d-like"></b></span><span>⭐ <b id="d-star"></b></span><span>💬 <b id="d-cmt"></b></span>
+        </div>
+        <div class="mini" style="margin-bottom:10px">评论 <span id="d-cmt-n"></span></div>
+        <div id="d-comments"></div>
+      </div>
+      <div class="comment-box">
+        <input placeholder="说点什么…（演示，不会真的发布）" />
+        <button class="btn ghost" style="width:auto;padding:8px 16px" onclick="toast('演示模式：评论不会真的发送')">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ 示例数据 ============ */
+const AVATARS = [
+  "https://api.dicebear.com/7.x/thumbs/svg?seed=anna&backgroundColor=ffd5dc",
+  "https://api.dicebear.com/7.x/thumbs/svg?seed=ben&backgroundColor=d1fbe0",
+  "https://api.dicebear.com/7.x/thumbs/svg?seed=cat&backgroundColor=dde7ff",
+  "https://api.dicebear.com/7.x/thumbs/svg?seed=dan&backgroundColor=fff3c8",
+  "https://api.dicebear.com/7.x/thumbs/svg?seed=eva&backgroundColor=ffe0cc",
+];
+function cover(seed, h){
+  // 用渐变色块当封面（离线也能显示，不依赖外链）
+  const hues = [ [340,80,62],[20,85,90],[190,70,70],[270,50,75],[150,45,60],[45,90,90] ];
+  const c = hues[seed % hues.length];
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='${h}'>
+    <defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+      <stop offset='0' stop-color='hsl(${c[0]},${c[1]}%,${c[2]}%)'/>
+      <stop offset='1' stop-color='hsl(${(c[0]+40)%360},${c[1]}%,${Math.max(35,c[2]-18)}%)'/>
+    </linearGradient></defs>
+    <rect width='400' height='${h}' fill='url(#g)'/>
+    <text x='50%' y='50%' fill='rgba(255,255,255,.85)' font-size='26' font-family='sans-serif'
+      text-anchor='middle' dominant-baseline='middle'>${['😶','🌿','☕','✨','🏔️','🍰'][seed%6]}</text>
+  </svg>`;
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+
+const KEYWORDS = ["穿搭","露营","探店","健身","考研","做饭"];
+
+const DB = {
+  "穿搭": [
+    {id:"n1",title:"冬季显瘦穿搭公式｜158cm也能穿出大长腿",nick:"穿搭Aria",like:"1.2万",tags:["穿搭","冬季","显瘦"],h:230,
+     content:"姐妹们！冬天真的不用裹成球～\n\n①高腰阔腿裤 + 短款羽绒，视觉拉长比例\n②同色系内搭显高显瘦\n③围巾选细长款，别选厚重圆领\n\n实测 158 穿这套被夸了一路 👗",comments:[
+       {nick:"小西瓜",text:"高腰裤链接求一个！",like:"328"},{nick:"Lily",text:"同158，学到了😭",like:"156"}]},
+    {id:"n2",title:"今年秋冬最火的3种颜色，谁穿都高级",nick:"色彩研究所",like:"8765",tags:["穿搭","配色","高级感"],h:300,
+     content:"焦糖棕 / 雾霾蓝 / 燕麦白——这三个色今年真的闭眼入。\n深浅叠穿，怎么搭都不出错。",comments:[{nick:"mo mo",text:"燕麦白真的百搭",like:"99"}]},
+    {id:"n3",title:"通勤穿搭｜一周不重样，打工人必看",nick:"上班穿搭日记",like:"6432",tags:["穿搭","通勤","职场"],h:260,
+     content:"周一到周五的搭配都给你排好了：\n西装配直筒裤、衬衫叠毛衣、针织连衣裙+短靴……",comments:[{nick:"Kk",text:"周四那套好绝",like:"45"}]},
+    {id:"n4",title:"千万别买的5件冬装，浪费钱还显胖",nick:"避雷指南",like:"2.3万",tags:["穿搭","避雷","省钱"],h:200,
+     content:"厚卫衣、超长款大衣小个子慎入、荧光羽绒……\n都是血泪教训。",comments:[{nick:"橘子",text:"荧光羽绒笑死太真实",like:"888"}]},
+    {id:"n5",title:"平价基础款清单｜衣柜九件套",nick:"极简衣柜",like:"5321",tags:["穿搭","平价","基础款"],h:280,
+     content:"9 件基础款搞定整个冬天，不用买贵，穿对更重要。",comments:[]},
+    {id:"n6",title:"小个子显高穿搭雷区，你中招了吗",nick:"显高小课堂",like:"4210",tags:["穿搭","小个子"],h:220,
+     content:"横条纹、低腰、过长上衣……这些都会压身高。",comments:[{nick:"啊喵",text:"低腰裤我天天穿😂",like:"12"}]},
+  ],
+  "露营": [
+    {id:"l1",title:"周末露营装备清单｜新手一次买齐不踩坑",nick:"露营老炮",like:"3.1万",tags:["露营","装备","户外"],h:260,
+     content:"帐篷、天幕、折叠桌、气炉……新手照着买就够了。",comments:[{nick:"山野",text:"天幕推荐哪个牌子",like:"210"}]},
+    {id:"l2",title:"城市周边宝藏露营地｜人少景美还免费",nick:"周末去哪",like:"1.8万",tags:["露营","露营地图"],h:300,
+     content:"开车一小时就能到的免费营地合集，附定位。",comments:[{nick:"小鹿",text:"求定位！",like:"502"}]},
+    {id:"l3",title:"露营美食指南：不脏手还好吃的搭配",nick:"户外厨房",like:"7720",tags:["露营","美食"],h:240,
+     content:"三明治、烤串、露营火锅……",comments:[]},
+  ],
+  "探店": [
+    {id:"t1",title:"藏在巷子里的宝藏甜品店，人均30吃到扶墙",nick:"城市食客",like:"5.6万",tags:["探店","甜品"],h:280,
+     content:"招牌提拉米苏真的绝，芝士蛋糕也超浓郁。",comments:[{nick:"甜的",text:"地址在哪呀",like:"390"}]},
+  ],
+  "健身": [
+    {id:"f1",title:"居家无器械减脂｜15分钟跟练",nick:"健身小钢炮",like:"4.2万",tags:["健身","减脂"],h:250,
+     content:"深蹲、波比跳、平板支撑……每天15分钟。",comments:[]},
+  ],
+};
+const DEFAULT_DB_KEY = "穿搭";
+
+/* 假封面用 data-uri，头像用 dicebear（失败可忽略） */
+function avatarOf(nick){
+  let h=0; for(const ch of nick) h=(h*31+ch.charCodeAt(0))>>>0;
+  return AVATARS[h % AVATARS.length];
+}
+
+/* ============ 渲染 ============ */
+const $ = (s)=>document.querySelector(s);
+let currentList = [];
+let currentKeyword = "";
+
+function renderChips(){
+  $("#chips").innerHTML = KEYWORDS.map(k=>{
+    const active = k===currentKeyword ? "background:var(--tag);border-color:var(--red);color:var(--red);font-weight:600" : "";
+    return `<span class="chip" style="${active}" data-kw="${k}"># ${k}</span>`;
+  }).join("");
+  document.querySelectorAll(".chip").forEach(el=>{
+    el.onclick = ()=> doSearch(el.dataset.kw);
+  });
+}
+
+function renderFeed(list, keyword, loading){
+  const feed = $("#feed");
+  $("#feed-count").textContent = list.length;
+  $("#feed-title").textContent = keyword ? `#${keyword}` : "发现";
+  if(loading){
+    feed.innerHTML = Array(6).fill(0).map((_,i)=>`
+      <div class="note"><div class="cover skel" style="height:${180+ (i%3)*40}px"></div>
+      <div class="body"><div class="skel" style="height:14px;border-radius:6px;margin-bottom:8px"></div>
+      <div class="skel" style="height:14px;width:60%;border-radius:6px"></div></div></div>`).join("");
+    return;
+  }
+  if(!list.length){
+    feed.innerHTML = `<div class="empty"><div class="big">🔍</div>没找到「${keyword}」的相关笔记，换个词试试～</div>`;
+    return;
+  }
+  feed.innerHTML = list.map((n,i)=>`
+    <div class="note" data-id="${n.id}">
+      <div class="cover"><img src="${cover(i, n.h)}" alt="" style="height:${n.h}px"/></div>
+      <div class="body">
+        <div class="title">${esc(n.title)}</div>
+        <div class="meta">
+          <span class="avatar"><img src="${avatarOf(n.nick)}" alt="" onerror="this.style.display='none'"/></span>
+          <span class="nick">${esc(n.nick)}</span>
+          <span class="like">❤️ ${n.like}</span>
+        </div>
+        <div class="tagrow">${n.tags.slice(0,3).map(t=>`<span class="tag">#${esc(t)}</span>`).join("")}</div>
+      </div>
+    </div>`).join("");
+  feed.querySelectorAll(".note").forEach(el=>{
+    el.onclick = ()=> openDetail(el.dataset.id);
+  });
+}
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+
+/* ============ 交互 ============ */
+function doSearch(kw){
+  kw = (kw||"").trim();
+  $("#kw").value = kw;
+  currentKeyword = kw;
+  renderChips();
+  renderFeed([], kw, true);
+  setTimeout(()=>{
+    const key = Object.keys(DB).find(k=> kw.includes(k)) || (DB[kw]?kw:DEFAULT_DB_KEY);
+    const list = DB[key] || DB[DEFAULT_DB_KEY];
+    currentList = list;
+    renderFeed(list, kw || key);
+    toast(`演示：已加载「${kw||key}」的示例笔记 ${list.length} 篇`);
+  }, 550);
+}
+
+function openDetail(id){
+  const n = currentList.find(x=>x.id===id) || allNotes().find(x=>x.id===id);
+  if(!n) return;
+  $("#d-img").src = cover(id.length+ (n.h%5), n.h*2);
+  $("#d-av").src = avatarOf(n.nick);
+  $("#d-nick").textContent = n.nick;
+  $("#d-time").textContent = "编辑于 1 天前";
+  $("#d-ntitle").textContent = n.title;
+  $("#d-ncontent").textContent = n.content || n.title;
+  $("#d-ntags").innerHTML = n.tags.map(t=>`<span class="tag">#${esc(t)}</span>`).join("");
+  $("#d-like").textContent = n.like;
+  $("#d-star").textContent = n.like.replace("万","")*0.3 ? Math.round(parseFloat(n.like)*0.3*10)/10 : "—";
+  const cms = n.comments || [];
+  $("#d-cmt").textContent = cms.length ? (cms.length*37) : 0;
+  $("#d-cmt-n").textContent = `(${cms.length})`;
+  $("#d-comments").innerHTML = cms.length ? cms.map(c=>`
+    <div class="comment">
+      <div class="cav"><img src="${avatarOf(c.nick)}" onerror="this.style.display='none'"/></div>
+      <div class="cbody">
+        <div class="cnick">${esc(c.nick)}</div>
+        <div class="ctext">${esc(c.text)}</div>
+        <div class="csub"><span>❤️ ${c.like}</span><span>回复</span></div>
+      </div>
+    </div>`).join("") : `<div class="mini" style="padding:10px 0">还没有评论，来抢沙发～</div>`;
+  // 记住当前用于出稿的笔记
+  $("#draft-kw").value = n.title.slice(0,10);
+  $("#overlay").classList.add("show");
+  document.body.style.overflow="hidden";
+}
+
+function allNotes(){
+  return Object.values(DB).flat();
+}
+
+$("#d-close").onclick = closeDetail;
+$("#overlay").onclick = (e)=>{ if(e.target.id==="overlay") closeDetail(); };
+function closeDetail(){ $("#overlay").classList.remove("show"); document.body.style.overflow=""; }
+
+$("#btn-search").onclick = ()=> doSearch($("#kw").value);
+$("#kw").addEventListener("keydown",(e)=>{ if(e.key==="Enter") doSearch($("#kw").value); });
+
+/* 开关 */
+document.querySelectorAll(".switch").forEach(s=>{
+  s.onclick = ()=>{ s.classList.toggle("on"); toast("演示：设置已切换（不会持久化）"); };
+});
+$("#set-count").onclick = ()=>{
+  const seq=[20,10,30]; const cur=+$("#set-count").textContent;
+  $("#set-count").textContent = seq[(seq.indexOf(cur)+1)%seq.length];
+};
+
+/* 生成草稿：模拟「模型写文章」 */
+$("#btn-draft").onclick = ()=>{
+  const kw = $("#draft-kw").value.trim() || (currentList[0] && currentList[0].title) || "小红书热门";
+  const style = $("#draft-style").value.trim();
+  const btn = $("#btn-draft");
+  btn.disabled = true; const old = btn.textContent; btn.textContent = "生成中…";
+  $("#draft-out").classList.remove("show");
+  setTimeout(()=>{
+    const d = mockArticle(kw, style, currentList);
+    $("#d-title").textContent = d.title;
+    $("#d-mode").textContent = `（模型据「${kw}」撰写${style?`｜文风：${style}`:""}）· 演示生成`;
+    $("#d-body").innerHTML = d.paras.map(p=>`<p>${esc(p)}</p>`).join("");
+    $("#d-tags").innerHTML = d.tags.map(t=>`<span class="tag">#${esc(t)}</span>`).join("");
+    $("#draft-out").classList.add("show");
+    btn.disabled=false; btn.textContent = old;
+    toast("演示：已生成示例草稿");
+  }, 900);
+};
+
+function mockArticle(kw, style, list){
+  const styleTag = style? style.split(/[,，、]/).map(s=>s.trim()).filter(Boolean):[];
+  const first = (list[0]&&list[0].title)||kw;
+  const title = `${kw}：这份${styleTag[0]||"实用"}指南请收好｜${new Date().toLocaleDateString("zh-CN",{month:"long",day:"numeric"})}`;
+  const paras = [
+    `最近「${kw}」在小红书上讨论度很高，从「${first}」这类笔记就能看出来，大家都在找真正有用、不那么浮夸的答案。今天这篇，想把它讲清楚。`,
+    `先说结论：与其盲目跟风，不如先搞明白自己的实际需求。很多热门笔记好看是真的，但适不适合自己，得带点判断。比如常被吹爆的几样东西，用起来其实各有门槛。`,
+    `从这些真实分享里能看出一个共性——真正被反复收藏的，往往不是最贵的，而是最"对症"的。找准自己的场景，比追着爆款走要省心得多。`,
+    `所以如果让我给个建议：先列清楚你要解决的到底是什么问题，再回头看这些笔记，你会发现重点一下子就清楚了。剩下的，就是挑一个今天就能动手的开始。`,
+  ];
+  const tags = ["小红书", kw, ...(styleTag.length?styleTag:["干货","种草"])].slice(0,4);
+  return {title, paras, tags};
+}
+
+/* toast */
+let toastT;
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+/* 初始化 */
+renderChips();
+currentKeyword="穿搭"; currentList = DB[DEFAULT_DB_KEY];
+renderFeed(currentList, "穿搭");
+</script>
+</body>
+</html>

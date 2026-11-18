@@ -1,0 +1,59 @@
+{
+  "name": "dsh-xhs",
+  "version": "0.1.0",
+  "description": "小红书笔记采集 / 评论 / 生成发布草稿（DSH 插件）。走宿主内专用浏览器 + CDP 监听真实响应 JSON，绕开签名与指纹墙；设置面板里搜索笔记、看评论、据关键词写可发布的小红书笔记。",
+  "type": "module",
+  "main": "./lib/index.js",
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "deepseek-harness",
+    "xiaohongshu",
+    "xhs",
+    "note"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "slots"
+      ],
+      "external": [
+        "react"
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node test/syntax.mjs"
+  }
+}

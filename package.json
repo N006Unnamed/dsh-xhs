@@ -1,6 +1,6 @@
 {
   "name": "dsh-xhs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "小红书笔记采集 / 评论 / 生成发布草稿（DSH 插件）。走宿主内专用浏览器 + CDP 监听真实响应 JSON，绕开签名与指纹墙；设置面板里搜索笔记、看评论、据关键词写可发布的小红书笔记。",
   "type": "module",
   "main": "./lib/index.js",
